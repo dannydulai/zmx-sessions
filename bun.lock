@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "zsm",
+      "name": "zmx-sessions",
       "dependencies": {
         "chalk": "^5.4.1",
         "string-width": "^7.2.0",

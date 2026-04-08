@@ -1,20 +1,18 @@
 #!/usr/bin/env bun
-// index.ts — Entry point for zsm (zmx session manager), Bun+TypeScript edition.
+// index.ts — Entry point for zmx-sessions
 
-import { run, type Cmd, type Msg, type Program } from "./tea.ts";
-import { newModel, fetchSessionsCmd } from "./tui/model.ts";
-import { update } from "./tui/update.ts";
-import { view } from "./tui/view.ts";
+import { run, type Cmd, type Msg, type Program } from "./tea";
+import { newModel, fetchSessionsCmd } from "./tui/model";
+import { update } from "./tui/update";
+import { view } from "./tui/view";
 
 const version = "dev";
-const commit = "none";
-const date = "unknown";
 
 // Handle --version / -v
 if (process.argv.length > 2) {
   const arg = process.argv[2];
   if (arg === "-v" || arg === "--version") {
-    console.log(`zsm ${version} (${commit}, ${date})`);
+    console.log(`zmx-sessions ${version}`);
     process.exit(0);
   }
 }
