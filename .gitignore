@@ -1,5 +1,5 @@
 node_modules/
 dist/
-zsm-bun
+zmx-sessions
 /tmp/
 *.log
