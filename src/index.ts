@@ -6,7 +6,8 @@ import { newModel, fetchSessionsCmd } from "./tui/model";
 import { update } from "./tui/update";
 import { view } from "./tui/view";
 
-const version = "dev";
+declare const VERSION: string;
+const version = typeof VERSION !== "undefined" ? VERSION : "dev";
 
 // Handle --version / -v
 if (process.argv.length > 2) {

@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'release-*'
 
 permissions:
   contents: write
@@ -35,7 +35,7 @@ jobs:
 
       - run: bun install
 
-      - run: bun build src/index.ts --compile --target=${{ matrix.target }} --outfile zmx-sessions
+      - run: bun build src/index.ts --compile --target=${{ matrix.target }} --define "VERSION='v${GITHUB_REF_NAME#release-}'" --outfile zmx-sessions
 
       - name: Create tarball
         run: tar czf ${{ matrix.artifact }}.tar.gz zmx-sessions

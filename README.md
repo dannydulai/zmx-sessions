@@ -6,28 +6,35 @@ Browse, preview, attach to, and kill zmx sessions from an interactive terminal i
 
 ## Requirements
 
-- [Bun](https://bun.sh) (v1.0+)
 - [zmx](https://github.com/nicholasgasior/zmx) in your PATH
 
 ## Install
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/dannydulai/zmx-sessions/main/install.sh | bash
+```
+
+This installs a standalone binary to `~/.local/bin/zmx-sessions`. Make sure `~/.local/bin` is in your `PATH`:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+### From source
+
+Requires [Bun](https://bun.sh) (v1.0+).
+
+```bash
 git clone https://github.com/dannydulai/zmx-sessions.git
 cd zmx-sessions
 bun install
+bun run build
 ```
 
 ## Usage
 
 ```bash
-bun run src/index.ts
-```
-
-Or compile to a standalone binary:
-
-```bash
-bun run build
-./zmx-sessions
+zmx-sessions
 ```
 
 ## Key Bindings
