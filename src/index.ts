@@ -13,7 +13,7 @@ const version = typeof VERSION !== "undefined" ? VERSION : "dev";
 if (process.argv.length > 2) {
   const arg = process.argv[2];
   if (arg === "-v" || arg === "--version") {
-    console.log(`zmx-sessions ${version}`);
+    console.log(`zmx-sessions ${version}\nhttps://github.com/dannydulai/zmx-sessions`);
     process.exit(0);
   }
 }
