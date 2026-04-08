@@ -1,13 +1,13 @@
 {
-  "name": "zsm",
+  "name": "zmx-sessions",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "zsm": "./src/index.ts"
+    "zmx-sessions": "./src/index.ts"
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build src/index.ts --compile --outfile zsm-bun",
+    "build": "bun build src/index.ts --compile --outfile zmx-sessions",
     "test": "bun test",
     "fmt": "bunx biome format --write src/",
     "lint": "bunx biome check src/"

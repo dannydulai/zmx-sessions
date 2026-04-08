@@ -1,6 +1,6 @@
-# zsessions
+# zmx-sessions
 
-A TUI session manager for [zmx](https://github.com/nicholasgasior/zmx), built with Bun and TypeScript.
+A TUI session manager for [zmx](https://github.com/nicholasgasior/zmx).
 
 Browse, preview, attach to, and kill zmx sessions from an interactive terminal interface with color-preserved history preview and vi-style navigation.
 
@@ -12,8 +12,8 @@ Browse, preview, attach to, and kill zmx sessions from an interactive terminal i
 ## Install
 
 ```bash
-git clone https://github.com/dannydulai/zsessions.git
-cd zsessions
+git clone https://github.com/dannydulai/zmx-sessions.git
+cd zmx-sessions
 bun install
 ```
 
@@ -27,7 +27,7 @@ Or compile to a standalone binary:
 
 ```bash
 bun run build
-./zsm-bun
+./zmx-sessions
 ```
 
 ## Key Bindings
@@ -55,7 +55,3 @@ bun run build
 - **`src/tui/update.ts`** -- Message handling and keyboard input
 - **`src/tui/view.ts`** -- Rendering (bordered panes, ANSI-aware horizontal slicing, styled list)
 - **`src/tui/styles.ts`** -- Terminal color/style definitions via chalk
-
-## License
-
-MIT
