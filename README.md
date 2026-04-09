@@ -1,12 +1,12 @@
 # zmx-sessions
 
-A TUI session manager for [zmx](https://github.com/nicholasgasior/zmx).
+A TUI session manager for [zmx](https://github.com/neurosnap/zmx).
 
 Browse, preview, attach to, and kill zmx sessions from an interactive terminal interface with color-preserved history preview and vi-style navigation.
 
 ## Requirements
 
-- [zmx](https://github.com/nicholasgasior/zmx) in your PATH
+- [zmx](https://github.com/neurosnap/zmx) in your PATH
 
 ## Install
 
