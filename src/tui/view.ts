@@ -112,9 +112,9 @@ function renderList(m: Model, maxRows: number): string {
   const visible = visibleSessions(m);
   if (visible.length === 0) {
     if (m.filterText !== "") {
-      return centerMessage(["", "", "no", "matches", "", "esc to", "clear"], lw);
+      return centerMessage(["", "", "no", "matches", "", "[esc]", "to clear"], lw);
     }
-    return centerMessage(["", "", "no", "sessions", "", "r to", "refresh"], lw);
+    return centerMessage(["", "", "no", "sessions", "", "[r]", "to refresh"], lw);
   }
   const metrics = visibleMetrics(m);
   const lines: string[] = [];
@@ -392,11 +392,13 @@ function replaceBottomBorder(pane: string, newBottom: string): string {
 // ---------------------------------------------------------------------------
 
 function centerMessage(words: string[], width: number): string {
+  const maxWord = Math.max(...words.map((w) => (w ? stringWidth(w) : 0)));
+  const outerPad = Math.max(0, Math.floor((width - maxWord) / 2));
   return words
     .map((w) => {
       if (!w) return "";
-      const pad = Math.max(0, Math.floor((width - stringWidth(w)) / 2));
-      return " ".repeat(pad) + logDimStyle(w);
+      const innerPad = Math.max(0, Math.floor((maxWord - stringWidth(w)) / 2));
+      return " ".repeat(outerPad + innerPad) + logDimStyle(w);
     })
     .join("\n");
 }
