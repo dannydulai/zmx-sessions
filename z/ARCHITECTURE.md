@@ -11,7 +11,7 @@ z/
   src/
     index.ts          CLI entry point, command routing, picker orchestration
     config.ts         Config + layout YAML parsing, validation, color normalization
-    zmx.ts            moox CLI interactions, kitty window launching, session helpers
+    moox.ts           moox CLI interactions, kitty window launching, session helpers
     ui/
       App.tsx          Main React component (panels, overlays, keyboard handling)
       Panel.tsx        Scrollable list panel with selection and item rendering
@@ -51,7 +51,7 @@ index.ts (CLI parsing)
     |   index.ts (execNewWhat / execNewPaneWhat / direct handlers)
     |       |
     |       v
-    |   zmx.ts (mooxAttach / kittyLaunchMoox / kittyAttachMoox / mooxKill)
+    |   moox.ts (mooxAttach / kittyLaunchMoox / kittyAttachMoox / mooxKill)
     |       |
     |       v
     |   moox CLI + kitty remote control
@@ -125,7 +125,7 @@ Colors in config are stored as `Style` objects (`{ fg?, bg?, bold?, italic?, dim
 ## Things to Know
 
 - `bun run src/index.ts` in the `z/` dir runs the app. Or `bun src/index.ts` directly.
-- The parent repo (`zmx-sessions`) has its own `package.json` with a `dev` script that runs the zmx-sessions TUI (a different app). Don't use `bun run dev` from the z/ directory if the parent catches it.
+- The parent repo has its own `package.json` with a `dev` script that runs a different TUI app. Don't use `bun run dev` from the z/ directory if the parent catches it.
 - `moox list -j` returns JSON. The old tab-delimited format is no longer used.
 - `moox attach` requires `-v` flags before the name/id. The `-` placeholder means "unnamed session".
 - `moox attach -` with no command uses the login shell.
