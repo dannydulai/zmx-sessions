@@ -1,6 +1,6 @@
 # z — Terminal Workspace Manager
 
-`z` is a terminal workspace manager backed by [moox](https://github.com/dannydulai/moox). It organizes persistent terminal sessions into **tabs** and **panes**, launches them across [kitty](https://sw.kovidgoyal.net/kitty/) windows, and provides an interactive picker (built with [Ink](https://github.com/vadimdemedes/ink) + React) for navigation.
+`z` is a terminal workspace manager backed by [moox](https://github.com/dannydulai/moox). It organizes persistent terminal sessions into **tabs** and **panes**, launches them across [kitty](https://sw.kovidgoyal.net/kitty/) windows, and provides an interactive picker (built with [ratatui](https://ratatui.rs/) + [crossterm](https://github.com/crossterm-rs/crossterm)) for navigation.
 
 ## Concepts
 
@@ -288,11 +288,13 @@ When `dir` is omitted:
 
 ## Dependencies
 
-| Package | Purpose |
+| Crate | Purpose |
 |---|---|
 | [moox](https://github.com/dannydulai/moox) | Session persistence backend |
-| [Bun](https://bun.sh) | TypeScript runtime |
 | [kitty](https://sw.kovidgoyal.net/kitty/) | Terminal emulator with remote control |
-| [ink](https://github.com/vadimdemedes/ink) ^7.0.0 | React-based terminal UI framework |
-| [react](https://react.dev) ^19.2.5 | UI component model |
-| [yaml](https://www.npmjs.com/package/yaml) ^2.7.1 | YAML parsing |
+| [ratatui](https://ratatui.rs/) 0.29 | Terminal UI framework |
+| [crossterm](https://github.com/crossterm-rs/crossterm) 0.28 | Terminal backend (raw mode, events, alt screen) |
+| [serde](https://serde.rs/) + [serde_yaml](https://docs.rs/serde_yaml) | YAML config parsing |
+| [serde_json](https://docs.rs/serde_json) | moox JSON output parsing |
+| [dirs](https://docs.rs/dirs) | Home directory resolution |
+| [unicode-width](https://docs.rs/unicode-width) | Display width calculation |
