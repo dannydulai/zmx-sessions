@@ -20,7 +20,7 @@ import {
   resolveDir,
   timeAgo,
   type MooxSession,
-} from "./zmx.ts";
+} from "./moox.ts";
 import { showPicker, REFRESH, type PanelItem, type PickerData, type NeedsDirFn } from "./ui/render.tsx";
 import { basename } from "path";
 

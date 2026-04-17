@@ -5,7 +5,7 @@ import { BottomBar } from "./BottomBar.tsx";
 import { DirInput } from "./DirInput.tsx";
 import type { Colors } from "../config.ts";
 import type { PickerData, PickerResult } from "./render.tsx";
-import { mooxKill, listSessions, panesForTab } from "../zmx.ts";
+import { mooxKill, listSessions, panesForTab } from "../moox.ts";
 
 export interface AppProps {
   initialData: PickerData;
