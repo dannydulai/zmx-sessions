@@ -26,7 +26,6 @@ pub enum ItemType {
     Tab,
     Pane,
     New,
-    Header,
     Blank,
 }
 
@@ -273,7 +272,6 @@ fn item_style(item_type: &ItemType, colors: &crate::config::Colors) -> Style {
         ItemType::Tab => &colors.tab,
         ItemType::Pane => &colors.pane,
         ItemType::New => &colors.new,
-        ItemType::Header => return Style::default().add_modifier(Modifier::DIM),
         ItemType::Blank => return Style::default(),
     };
     style_to_ratatui(s)

@@ -56,26 +56,22 @@ fn main() {
 
 fn handle_new(args: &[String], config: &Config) {
     if args.first().map(|s| s.as_str()) == Some("pane") {
+        if args.len() > 1 {
+            eprintln!("Usage: z new pane");
+            process::exit(1);
+        }
         let tab_name = get_kitty_tab_title();
         if let Some(tab_name) = tab_name {
-            if let Some(what) = args.get(1).map(|s| s.as_str()) {
-                let action = action_from_cli(what, Some(&tab_name));
-                execute_picker_action(action, None, config);
-            }
             picker_new_pane(&tab_name, config);
         } else {
-            if let Some(what) = args.get(1).map(|s| s.as_str()) {
-                let action = action_from_cli(what, None);
-                execute_picker_action(action, None, config);
-            }
             picker_new(config);
         }
         return;
     }
 
-    if let Some(what) = args.first().map(|s| s.as_str()) {
-        let action = action_from_cli(what, None);
-        execute_picker_action(action, None, config);
+    if !args.is_empty() {
+        eprintln!("Usage: z new");
+        process::exit(1);
     }
 
     if let Some(tab_name) = get_kitty_tab_title() {
@@ -122,13 +118,6 @@ fn execute_picker_action(action: PickerAction, picker_dir: Option<&str>, config:
                 Some(vars(&tab_name, pn)),
                 config.default.name.as_deref(),
             );
-        }
-        PickerAction::CreateNamedTab { tab_name } => {
-            set_kitty_tab_title(&tab_name);
-            attach_and_exit(None, None, None, Some(vars(&tab_name, "Shell")), None);
-        }
-        PickerAction::CreateNamedPane { tab_name, pane_name } => {
-            attach_and_exit(None, None, None, Some(vars(&tab_name, &pane_name)), None);
         }
         PickerAction::OpenLayoutTab { tab_name } => {
             let tab = find_layout_tab(&tabs, &tab_name);
@@ -568,33 +557,10 @@ fn run_picker<F: Fn() -> PickerData + 'static>(build_data: F, config: &Config) -
 // z ls
 // ---------------------------------------------------------------------------
 
-fn handle_ls(args: &[String], config: &Config) {
+fn handle_ls(args: &[String], _config: &Config) {
     let what = args.first().map(|s| s.as_str()).unwrap_or("");
 
     match what {
-        "layouts" => {
-            let tabs = config::load_tabs();
-            if tabs.is_empty() {
-                println!("No layouts defined.");
-                return;
-            }
-            for tab in &tabs {
-                let dir = tab.dir.as_deref().unwrap_or("");
-                if dir.is_empty() {
-                    println!("{}", tab.name);
-                } else {
-                    println!("{} ({})", tab.name, dir);
-                }
-                for pane in &tab.panes {
-                    let cmd = pane
-                        .cmd
-                        .as_deref()
-                        .or(config.default.cmd.as_deref())
-                        .unwrap_or("$SHELL");
-                    println!("  {} \u{2192} {}", pane.name, cmd);
-                }
-            }
-        }
         "tabs" => {
             let sessions = list_sessions();
             let tabs = unique_tabs(&sessions);
@@ -619,11 +585,11 @@ fn handle_ls(args: &[String], config: &Config) {
             }
         }
         "" => {
-            eprintln!("Usage: z ls <layouts|tabs|panes>");
+            eprintln!("Usage: z ls <tabs|panes>");
             process::exit(1);
         }
         _ => {
-            eprintln!("Unknown: {}. Use: layouts, tabs, panes", what);
+            eprintln!("Unknown: {}. Use: tabs, panes", what);
             process::exit(1);
         }
     }
@@ -644,21 +610,14 @@ fn print_help() {
         r#"z — terminal workspace manager backed by moox
 
 Usage:
-  z new [what]           Create a new tab or open existing
-  z new pane [what]      Create a pane in the current tab
-  z ls layouts           List configured layouts
+  z new                  Open the interactive picker
+  z new pane             Open the interactive picker in the current tab
   z ls tabs              List running tabs
   z ls panes             List running panes
   z help                 Show this help
 
-What specifiers:
-  new:<name>             Create new tab with given name
-  layout-tab:<name>      Start all panes from a layout tab
-  layout-pane:<tab>.<pane>  Start a specific layout pane
-  existing-tab:<name>    Open all panes of a running tab
-  existing-pane:<id>     Attach to a specific running pane
-
-Without a specifier, an interactive picker is shown.
+The picker can open layout tabs, layout panes, running tabs, running panes,
+and the "Open all tabs" action from the running panel.
 
 Config: {}/
   config.yaml            Default pane settings and colors
@@ -671,69 +630,6 @@ Config: {}/
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-fn parse_what(what: &str) -> (&str, &str) {
-    if let Some(colon) = what.find(':') {
-        (&what[..colon], &what[colon + 1..])
-    } else {
-        ("new", what)
-    }
-}
-
-fn action_from_cli(what: &str, current_tab: Option<&str>) -> PickerAction {
-    let (kind, name) = parse_what(what);
-    match kind {
-        "new" => {
-            if let Some(tab_name) = current_tab {
-                PickerAction::CreateNamedPane {
-                    tab_name: tab_name.to_string(),
-                    pane_name: name.to_string(),
-                }
-            } else {
-                PickerAction::CreateNamedTab {
-                    tab_name: name.to_string(),
-                }
-            }
-        }
-        "layout-tab" => PickerAction::OpenLayoutTab {
-            tab_name: name.to_string(),
-        },
-        "layout-pane" => {
-            let dot = name.find('.').unwrap_or(name.len());
-            let tab_name = name[..dot].to_string();
-            let pane_name = if dot < name.len() {
-                Some(name[dot + 1..].to_string())
-            } else {
-                None
-            };
-            PickerAction::OpenLayoutPane { tab_name, pane_name }
-        }
-        "existing-tab" => PickerAction::OpenExistingTab {
-            tab_name: name.to_string(),
-        },
-        "existing-pane" => {
-            let pane_title = list_sessions()
-                .into_iter()
-                .find(|s| s.id == name)
-                .and_then(|s| if s.pane.is_empty() { None } else { Some(s.pane) });
-            PickerAction::OpenExistingPane {
-                session_id: name.to_string(),
-                pane_title,
-            }
-        }
-        "new-shell" => current_tab
-            .map(|tab_name| PickerAction::CreateDefaultPaneShell {
-                tab_name: tab_name.to_string(),
-            })
-            .unwrap_or(PickerAction::CreateDefaultTabShell),
-        "shell" => PickerAction::RawShell,
-        "open-all-tabs" => PickerAction::OpenAllRunningTabs,
-        _ => {
-            eprintln!("Invalid target: {}", what);
-            process::exit(1);
-        }
-    }
-}
 
 fn find_layout_tab<'a>(tabs: &'a [LayoutTab], name: &str) -> &'a LayoutTab {
     tabs.iter().find(|t| t.name == name).unwrap_or_else(|| {

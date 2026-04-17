@@ -6,16 +6,6 @@ use std::path::PathBuf;
 // Types
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Deserialize, Default)]
-pub struct StyleSpec {
-    pub fg: Option<String>,
-    pub bg: Option<String>,
-    pub bold: Option<bool>,
-    pub italic: Option<bool>,
-    pub dim: Option<bool>,
-    pub strikethrough: Option<bool>,
-}
-
 #[derive(Debug, Clone)]
 pub struct Style {
     pub fg: Option<String>,

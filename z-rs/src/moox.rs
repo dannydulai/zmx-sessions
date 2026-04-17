@@ -120,84 +120,6 @@ pub fn moox_history(id: &str) -> String {
     }
 }
 
-/// Strip ANSI escape sequences, OSC, charset switches, CR, and control chars.
-/// Keeps printable text, newlines, and tabs.
-pub fn strip_ansi(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let mut result = String::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        let b = bytes[i];
-        if b == 0x1b {
-            // ESC
-            i += 1;
-            if i >= bytes.len() {
-                break;
-            }
-            match bytes[i] {
-                b'[' => {
-                    // CSI sequence — skip all (including SGR)
-                    i += 1;
-                    while i < bytes.len() && (bytes[i] < 0x40 || bytes[i] > 0x7e) {
-                        i += 1;
-                    }
-                    if i < bytes.len() {
-                        i += 1;
-                    } // skip final byte
-                }
-                b']' => {
-                    // OSC — skip until BEL or ST
-                    i += 1;
-                    while i < bytes.len() {
-                        if bytes[i] == 0x07 {
-                            i += 1;
-                            break;
-                        }
-                        if bytes[i] == 0x1b && i + 1 < bytes.len() && bytes[i + 1] == b'\\' {
-                            i += 2;
-                            break;
-                        }
-                        i += 1;
-                    }
-                }
-                b'(' | b')' => {
-                    // Charset designation — skip next byte
-                    i += 1;
-                    if i < bytes.len() {
-                        i += 1;
-                    }
-                }
-                _ => {
-                    i += 1;
-                }
-            }
-        } else if b == b'\r' {
-            i += 1;
-        } else if b < 0x20 && b != b'\n' && b != b'\t' {
-            // Strip other control chars
-            i += 1;
-        } else {
-            // Printable or newline/tab — keep
-            // Handle UTF-8 properly
-            let ch_len = if b < 0x80 {
-                1
-            } else if b < 0xe0 {
-                2
-            } else if b < 0xf0 {
-                3
-            } else {
-                4
-            };
-            let end = (i + ch_len).min(bytes.len());
-            if let Ok(ch) = std::str::from_utf8(&bytes[i..end]) {
-                result.push_str(ch);
-            }
-            i = end;
-        }
-    }
-    result
-}
-
 pub fn ansi_lines(s: &str) -> Vec<Line<'static>> {
     let bytes = s.as_bytes();
     let mut lines: Vec<Line<'static>> = Vec::new();
@@ -445,15 +367,6 @@ pub fn moox_attach(
 
 pub fn moox_kill(id: &str) {
     let _ = Command::new("moox").args(["kill", id]).output();
-}
-
-pub fn moox_set_vars(id: &str, vars: &HashMap<String, String>) {
-    let mut args = vec!["vars".to_string(), id.to_string()];
-    for (k, v) in vars {
-        args.push("--var".to_string());
-        args.push(format!("{}={}", k, v));
-    }
-    let _ = Command::new("moox").args(&args).output();
 }
 
 // ---------------------------------------------------------------------------

@@ -15,7 +15,6 @@ pub struct DirInputState {
     pub path: String,
     pub sel_idx: i32, // -1 = no selection
     pub subdirs: Vec<String>,
-    pub visible: bool,
     pub prompt: String,
 }
 
@@ -31,7 +30,6 @@ impl DirInputState {
             path,
             sel_idx: -1,
             subdirs: Vec::new(),
-            visible: true,
             prompt: prompt.to_string(),
         };
         s.update_subdirs();

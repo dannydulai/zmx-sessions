@@ -2,8 +2,6 @@
 pub enum PickerAction {
     CreateDefaultTabShell,
     CreateDefaultPaneShell { tab_name: String },
-    CreateNamedTab { tab_name: String },
-    CreateNamedPane { tab_name: String, pane_name: String },
     OpenLayoutTab { tab_name: String },
     OpenLayoutPane { tab_name: String, pane_name: Option<String> },
     OpenExistingTab { tab_name: String },
