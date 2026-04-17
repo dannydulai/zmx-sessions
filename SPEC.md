@@ -1,98 +1,172 @@
 # z — Terminal Workspace Manager
 
-`z` is a terminal workspace manager backed by [moox](https://github.com/dannydulai/moox). It organizes persistent terminal sessions into **tabs** and **panes**, launches them across [kitty](https://sw.kovidgoyal.net/kitty/) windows, and provides an interactive picker (built with [ratatui](https://ratatui.rs/) + [crossterm](https://github.com/crossterm-rs/crossterm)) for navigation.
+`z` is a terminal workspace manager built around [moox](https://github.com/dannydulai/moox) and [kitty](https://sw.kovidgoyal.net/kitty/). It gives you a fast interactive picker for launching new shells, opening saved layouts, reconnecting to running panes, and browsing persistent terminal workspaces without switching to a full terminal multiplexer workflow.
 
 ## Concepts
 
-- **Tab**: A logical group of panes. Maps to a kitty tab. Identified by the moox session variable `tab=<name>`. The kitty tab title is set to the basename of the working directory.
-- **Pane**: A single persistent moox session within a tab. Identified by the moox session variable `pane=<name>`. Maps to a kitty window.
-- **Layout**: A pre-configured tab template defined in YAML. Specifies pane names, commands, and directories.
-- **Session ID**: Each moox session has an auto-generated hex ID (e.g. `e6463ec983130091`). Sessions are unnamed (`-` placeholder) — identity comes from moox vars, not the session name.
+- **Tab**: A logical workspace. In practice this maps to a kitty tab and is tracked with the moox session variable `tab=<name>`.
+- **Pane**: A persistent shell inside a tab. In practice this maps to a kitty window and is tracked with the moox session variable `pane=<name>`.
+- **Layout**: A configured workspace template defined in YAML. A layout tab can define multiple panes, commands, and directories.
+- **Running session**: An existing moox session that can be reopened from the picker.
+- **Session ID**: The moox-generated ID used to reconnect to a specific pane.
 
 ## Commands
 
-```
-z new [what]           Create a new tab or open existing (interactive picker if no arg)
-z new pane [what]      Create a pane in the current kitty tab (interactive picker if no arg)
-z ls layouts           List configured layout tabs
+```text
+z new                  Open the interactive picker
+z new pane             Open the interactive picker in the current tab
 z ls tabs              List running tabs
 z ls panes             List running panes
 z help                 Show help
 ```
 
-### Tab context detection
+## Picker behavior
 
-Both `z new` and `z new pane` check the kitty tab title via `kitty @ ls --self`. If the current kitty tab has an overridden title (user-set), z uses that as the tab context and shows the pane picker. Otherwise, z shows the full tab picker.
+`z new` and `z new pane` are picker-driven. There are no direct `[what]` CLI variants anymore.
 
-### What specifiers
+When `z new` runs, z checks the current kitty context with `kitty @ ls --self`:
 
-| Specifier | Description |
-|---|---|
-| `new:<name>` | Create new tab with given name |
-| `layout-tab:<name>` | Start all panes from a layout tab |
-| `layout-pane:<tab>.<pane>` | Start a specific layout pane |
-| `existing-tab:<name>` | Open all panes of a running tab |
-| `existing-pane:<id>` | Attach to a specific running pane by moox ID |
+- if the current kitty tab has an overridden title, z treats that title as the current tab context and opens the pane-oriented picker
+- otherwise, z opens the full workspace picker
 
-## Interactive Picker
+`z new pane` always opens the pane-oriented picker when tab context is available, and falls back to the full picker otherwise.
 
-Two-panel TUI with Layouts (left) and Running (right).
+## Main picker layout
 
-### Keybindings
+The main picker uses up to three columns:
+
+- **Layouts**: new shell actions and configured layout tabs/panes
+- **Running**: currently running tabs and panes discovered from moox
+- **Preview**: inline history for the selected running pane
+
+If there are no running sessions, the picker shows only the left column.
+
+## Main picker contents
+
+### Layouts column
+
+The left column includes:
+
+- a `New Shell...` action
+- configured layout tabs
+- individual panes within each layout tab
+- a `Raw Shell` action
+
+### Running column
+
+The running column includes:
+
+- running tabs grouped by `tab` session var
+- running panes nested under each tab
+- an `Open all tabs` action at the bottom when running tabs exist
+
+The unfocused running selection stays visible for pane rows so the preview stays visually tied to the selected pane.
+
+### Preview column
+
+The preview column shows `moox history --vt <session>` for the selected running pane.
+
+ANSI color is preserved and rendered inside the TUI. The preview is intended for normal colorized shell history, not full terminal emulation.
+
+The preview starts pegged to the bottom. You can scroll upward normally, and the visible viewport is clamped so the pane does not leave empty blank space at the bottom.
+
+## Keybindings
 
 | Key | Action |
 |---|---|
-| j/k, Up/Down | Navigate items |
-| h/l, Left/Right, Tab | Switch panel |
-| g, 0 | Jump to top |
-| G, $ | Jump to bottom |
-| Enter | Select item |
-| Shift+K | Kill selected pane or tab (with y/n confirmation) |
-| Ctrl+L | Refresh session list |
-| q, Escape, Ctrl+C, Ctrl+D | Quit |
+| `j` / `k`, Up / Down | Move selection, or scroll preview when preview is focused |
+| `h` / `l`, Left / Right | Horizontal preview scroll when preview is focused |
+| `Tab` | Cycle focus forward through Layouts, Running, Preview |
+| `Shift+Tab` | Cycle focus backward |
+| `g`, `0` | Jump to top of the active panel, or top-left of preview |
+| `G`, `$` | Jump to bottom of the active panel, or bottom of preview |
+| `Enter` | Select the current item |
+| `Shift+K` | Kill the selected running pane or running tab |
+| `Ctrl+L` | Refresh picker data and preview content without resetting preview scroll |
+| `q`, `Esc`, `Ctrl+C`, `Ctrl+D` | Quit |
 
-### Panels
+## Action semantics
 
-- **Layouts panel** (left): Shows "New Shell..." at top, layout tabs with their panes, and "Raw Shell" at bottom. Title shows "Layouts" for `z new`, or the current tab name for `z new pane`.
-- **Running panel** (right): Shows running tabs grouped by `tab` moox var, with their panes. Each pane shows: icon, display name, moox session ID (grey, in brackets), and time ago / client status as dimmed suffix.
+### New shell
 
-### Pane icons
+`New Shell...` starts a new moox-backed shell using `config.yaml` defaults.
 
-- `\uf489` (terminal icon) — pane with 1+ attached clients
-- `\uf444` (small dot) — disconnected pane (0 clients)
+In the main picker it creates a new tab shell. In the pane picker it creates a new pane inside the current tab context.
 
-### Pane suffix
+If the configured directory is `ask`, z opens the directory chooser first.
 
-- Time ago (e.g. `3m ago`, `2h ago`, `Mar 15`)
-- `[disconnected]` if 0 clients
-- `[N attached]` if more than 1 client
+### Layout tab
 
-### Selection bar
+Selecting a layout tab launches the full layout:
 
-Full-width colored bar (configurable via `colors.selection`). No arrow indicator.
+- pane 1 attaches in the current process
+- remaining panes are opened through kitty remote control
+- the kitty tab title is set from the resolved directory basename
 
-### Overlays
+### Layout pane
 
-- **Directory chooser**: File-browser-style popup for selecting a working directory. Shows current path as editable input, subdirectories with fuzzy filtering. Enter=select, Space/Right/Tab=navigate into, Left=go up, Ctrl+U/Ctrl+W=delete to previous slash, Esc=cancel.
-- **Kill confirmation**: `Kill <id>? (y/n)` popup. For tabs, shows `Kill tab "<name>" (N panes)? (y/n)` and kills all panes.
+Selecting an individual layout pane starts only that pane using the layout’s configured command and directory resolution rules.
 
-## Config Directory
+### Running pane
 
-`$XDG_CONFIG_HOME/z/` (or `~/.config/z/`). Auto-created on first run.
+Selecting a running pane reattaches directly to that moox session.
+
+### Running tab
+
+Selecting a running tab opens all panes from that tab:
+
+- the first pane attaches in the current process
+- remaining panes are reopened through kitty
+
+### Open all tabs
+
+`Open all tabs` reopens every running tab:
+
+- the first pane for each tab is opened in a new kitty tab and used to establish that tab
+- the rest of that tab’s panes are opened into the same kitty tab
+
+## Preview behavior
+
+The preview is tied to the selected running pane.
+
+- selecting a different running pane loads that pane’s history
+- refreshing preserves horizontal scroll, vertical scroll, and bottom-follow mode when possible
+- the preview is cleared when the selected running item is not a pane
+
+## Kill behavior
+
+`Shift+K` opens a confirmation overlay.
+
+- on a pane row, it kills that pane’s moox session
+- on a running tab row, it kills every pane in that tab
+
+After confirmation, z polls moox briefly so the UI can refresh as sessions disappear.
+
+## Config directory
+
+z uses:
+
+```text
+$XDG_CONFIG_HOME/z/
+```
+
+or:
+
+```text
+~/.config/z/
+```
+
+Files:
 
 | File | Description |
 |---|---|
-| `config.yaml` | Default pane settings and colors |
+| `config.yaml` | Default shell behavior and colors |
 | `layouts.yaml` | Layout tab definitions |
-| `layouts.d/*.yaml` | Additional layout files (loaded alphabetically) |
+| `layouts.d/*.yaml` | Additional layout files |
 
-## config.yaml
+## `config.yaml`
 
 ```yaml
-# Default pane settings for "New Shell" menu items
-#   name: kitty window title and moox pane var (omit to not set)
-#   cmd:  command to run (omit for login shell)
-#   dir:  "ask" to prompt, or a fixed path (omit for cwd)
 default:
   dir: ask
   name: SHELL
@@ -105,43 +179,19 @@ colors:
   selection: { bg: "#2a2a4e", fg: "#e0e0e0" }
 ```
 
-### default section
+### `default`
 
-| Field | Type | Description |
-|---|---|---|
-| `name` | string | Moox `pane` var and kitty window title. Omit to not set window title. |
-| `cmd` | string | Command to run. Omit for login shell ($SHELL). |
-| `dir` | string | `"ask"` to show directory chooser, a fixed path, or omit for cwd. |
+| Field | Description |
+|---|---|
+| `name` | Default pane name and kitty window title |
+| `cmd` | Default command to run instead of a login shell |
+| `dir` | `ask`, a fixed path, or omitted for current working directory |
 
-### colors section
+### `colors`
 
-Each entry is a simple string (foreground only) or a dict:
+The picker supports named colors and hex colors. Layout tabs, panes, new actions, running headers, and the active selection can all be styled through config.
 
-```yaml
-# Simple
-tab: yellow
-
-# Full
-selection:
-  fg: white
-  bg: blue
-  bold: true
-  italic: false
-  dim: false
-  strikethrough: false
-```
-
-**Color values**: Named (`black`, `red`, `green`, `yellow`, `blue`, `magenta`/`purple`, `cyan`, `white`, `bright black`...`bright white`), hex (`"#ff5f00"`), short hex (`"#f50"` expands to `"#ff5500"`). Named colors respect terminal theme. Internally mapped to Ink/chalk names (e.g. `bright cyan` -> `cyanBright`).
-
-| Key | Default | Applied to |
-|---|---|---|
-| `tab` | `yellow` | Tab items |
-| `pane` | `green` | Pane items |
-| `new` | `cyan` | "New Shell" / "Raw Shell" items |
-| `running` | `dim` | Running panel headers |
-| `selection` | `bg: blue, fg: white, bold` | Selection bar |
-
-## layouts.yaml
+## `layouts.yaml`
 
 ```yaml
 tabs:
@@ -154,147 +204,53 @@ tabs:
       - name: Shell_#1
       - name: Shell_#2
       - name: Shell_#3
-
-  - name: 4_Shells
-    dir: ask
-    panes:
-      - display: shell
-      - name: Shell
-      - name: Shell
-      - name: Shell
 ```
 
-### Tab fields
+### Layout tab fields
 
-| Field | Type | Description |
-|---|---|---|
-| `name` | string | **Required.** Tab identifier. No spaces (use `_`, displayed as spaces). |
-| `dir` | string | `"ask"`, a fixed path, or omit for cwd. Inherited by panes. |
-| `panes` | list | List of pane definitions. |
-
-### Pane fields
-
-| Field | Type | Description |
-|---|---|---|
-| `name` | string | Moox `pane` var and kitty window title (if set). No spaces. |
-| `display` | string | Display name in picker TUI. Falls back to `name`, then `cmd`, then `"Shell"`. |
-| `cmd` | string | Command to run. Omit for login shell. Passed as `$SHELL -c <cmd>`. |
-| `dir` | string | Per-pane directory override. |
-
-### Display name resolution (TUI)
-
-`display` > `name` > `cmd` > `"Shell"`
-
-### Moox pane var resolution
-
-`name` > `"Shell"`
-
-### Naming rules
-
-- Tab names: no spaces (use `_`). Displayed with `_` as spaces. Must be unique.
-- Pane names: no spaces (use `_`). Displayed with `_` as spaces.
-- Validation runs on every layout load; errors shown with press-any-key-to-reload prompt.
-
-## Kitty Integration
-
-### Tab title
-
-Set via `kitty @ set-tab-title` when:
-- Creating a new tab from "New Shell..." (set to basename of chosen directory)
-- Opening a layout tab (set to basename of resolved directory)
-- Opening a layout pane as a new tab (set to basename of resolved directory)
-
-### Window title
-
-Set via `kitty @ set-window-title` when a pane has an explicit `name` in the layout config.
-
-### Tab context detection
-
-`kitty @ ls --self` returns JSON. If `.[0].tabs[0].title_overridden` is true, the tab title (`.[0].tabs[0].title`) is used as the tab context. This determines whether `z new` shows the tab picker or pane picker.
-
-### Multi-pane launch
-
-When opening a layout tab with multiple panes:
-1. Panes 2+ are launched in new kitty windows via `kitty @ launch`
-2. Pane 1 runs in the current window
-3. Each kitty window runs `moox attach` directly (not through z)
-
-```
-kitty @ launch --env SHLVL=0 --cwd $DIR $SHELL -lc "kitty @ set-window-title <name>; moox attach --var tab=<tab> --var pane=<pane> - $SHELL -c <cmd>"
-```
-
-### Existing tab reattach
-
-When opening an existing tab, all disconnected panes are opened in new kitty windows via `kitty @ launch` with `moox attach <id>`.
-
-## Moox Integration
-
-### Session creation
-
-New sessions are created unnamed (using `-` as the name placeholder):
-
-```
-moox attach --var tab=<tabname> --var pane=<panename> - $SHELL
-moox attach --var tab=<tabname> --var pane=<panename> - $SHELL -c <command>
-```
-
-`-v`/`--var` flags go before the name. `-` means unnamed. Everything after the name is the command.
-
-### Session listing
-
-```
-moox list -j
-```
-
-Returns JSON array. z filters to sessions that have a `tab` var (z-managed sessions). Fields used: `id`, `tab`, `pane`, `created`, `clients`.
-
-### Session vars
-
-```
-moox vars <id> --var key=val
-```
-
-### Session kill
-
-```
-moox kill <id>
-```
-
-After killing, z polls `moox list` every 100ms for up to 5 seconds until the killed sessions disappear, refreshing the UI each time.
-
-### Existing session attach
-
-```
-moox attach <id>
-```
-
-No command passed — just reattaches to the existing session.
-
-## Directory Resolution
-
-When a layout tab/pane has `dir: ask`, or `config.default.dir: ask`:
-1. The directory chooser overlay is shown
-2. User navigates and selects a directory
-3. The chosen directory becomes:
-   - The moox session's cwd
-   - The source of the kitty tab title (basename)
-
-When `dir` is a fixed path:
-- `~` is expanded to `$HOME`
-- If the path doesn't exist, the directory chooser is shown pre-filled with that path
-
-When `dir` is omitted:
-- Current working directory is used
-
-## Dependencies
-
-| Crate | Purpose |
+| Field | Description |
 |---|---|
-| [moox](https://github.com/dannydulai/moox) | Session persistence backend |
-| [kitty](https://sw.kovidgoyal.net/kitty/) | Terminal emulator with remote control |
-| [ratatui](https://ratatui.rs/) 0.29 | Terminal UI framework |
-| [crossterm](https://github.com/crossterm-rs/crossterm) 0.28 | Terminal backend (raw mode, events, alt screen) |
-| [serde](https://serde.rs/) + [serde_yaml](https://docs.rs/serde_yaml) | YAML config parsing |
-| [serde_json](https://docs.rs/serde_json) | moox JSON output parsing |
-| [dirs](https://docs.rs/dirs) | Home directory resolution |
-| [unicode-width](https://docs.rs/unicode-width) | Display width calculation |
+| `name` | Required tab identifier |
+| `dir` | Shared tab directory or `ask` |
+| `panes` | Pane definitions for this layout |
+
+### Layout pane fields
+
+| Field | Description |
+|---|---|
+| `name` | Pane identifier and kitty window title when set |
+| `display` | UI label for the pane |
+| `cmd` | Command to run in the pane |
+| `dir` | Per-pane directory override |
+
+### Display rules
+
+- displayed tab and pane names replace `_` with spaces
+- pane display text prefers `display`, then `name`, then `cmd`, then `Shell`
+- pane var naming prefers `name`, then `Shell`
+
+## moox integration
+
+z uses moox as the persistence layer.
+
+Typical commands involved:
+
+```text
+moox list -j
+moox history --vt <id>
+moox kill <id>
+moox attach --var tab=<tab> --var pane=<pane> - <shell...>
+```
+
+z treats moox session vars as the source of truth for grouping and reopening workspaces.
+
+## kitty integration
+
+z uses kitty remote control to:
+
+- detect current tab context
+- set tab and window titles
+- launch additional panes in tabs or windows
+- reopen running workspaces across multiple tabs
+
+This is intentionally opinionated around kitty so the workflow stays simple and predictable.
