@@ -4,9 +4,10 @@ mod ui;
 
 use config::{display_name, pane_display, pane_name, resolve_dir, Config, LayoutPane, LayoutTab};
 use moox::{
-    kitty_attach_moox, kitty_launch_moox, list_sessions, moox_attach, moox_kill, panes_for_tab,
-    running_pane_icon, running_pane_suffix, set_kitty_tab_title, set_kitty_window_title,
-    unique_tabs, get_kitty_tab_title, MooxSession,
+    get_kitty_tab_title, kitty_attach_moox, kitty_attach_moox_in_new_tab,
+    kitty_attach_moox_in_tab, kitty_launch_moox, list_sessions, moox_attach, moox_kill,
+    panes_for_tab, running_pane_icon, running_pane_suffix, set_kitty_tab_title,
+    set_kitty_window_title, unique_tabs, MooxSession,
 };
 use ui::app::{DirNeeds, PickerData, PickerResult};
 use ui::panel::{ItemType, PanelItem};
@@ -114,7 +115,11 @@ fn exec_new_what(what: &str, picker_dir: Option<&str>, config: &Config) {
             if !tab.panes.is_empty() {
                 let p = &tab.panes[0];
                 let pdir = pane_dir(p, &dir);
-                let wt = if p.name.is_empty() { None } else { Some(p.name.as_str()) };
+                let wt = if p.name.is_empty() {
+                    None
+                } else {
+                    Some(p.name.as_str())
+                };
                 attach_and_exit(
                     None,
                     p.cmd.as_deref(),
@@ -129,7 +134,11 @@ fn exec_new_what(what: &str, picker_dir: Option<&str>, config: &Config) {
             let dir = resolve_picker_dir(picker_dir, pane.dir.as_deref().or(tab.dir.as_deref()));
             let tab_name = basename(&dir);
             set_kitty_tab_title(&tab_name);
-            let wt = if pane.name.is_empty() { None } else { Some(pane.name.as_str()) };
+            let wt = if pane.name.is_empty() {
+                None
+            } else {
+                Some(pane.name.as_str())
+            };
             attach_and_exit(
                 None,
                 pane.cmd.as_deref(),
@@ -147,18 +156,30 @@ fn exec_new_what(what: &str, picker_dir: Option<&str>, config: &Config) {
             }
             for i in 1..tab_sessions.len() {
                 let s = tab_sessions[i];
-                let wt = if s.pane.is_empty() { None } else { Some(s.pane.as_str()) };
+                let wt = if s.pane.is_empty() {
+                    None
+                } else {
+                    Some(s.pane.as_str())
+                };
                 kitty_attach_moox(&s.id, wt);
             }
             let s = tab_sessions[0];
-            let wt = if s.pane.is_empty() { None } else { Some(s.pane.as_str()) };
+            let wt = if s.pane.is_empty() {
+                None
+            } else {
+                Some(s.pane.as_str())
+            };
             attach_and_exit(Some(&s.id), None, None, None, wt);
         }
         "existing-pane" => {
             let sessions = list_sessions();
             let session = sessions.iter().find(|s| s.id == name);
             let wt = session.and_then(|s| {
-                if s.pane.is_empty() { None } else { Some(s.pane.as_str()) }
+                if s.pane.is_empty() {
+                    None
+                } else {
+                    Some(s.pane.as_str())
+                }
             });
             attach_and_exit(Some(name), None, None, None, wt);
         }
@@ -192,7 +213,11 @@ fn exec_new_pane_what(tab_name: &str, what: &str, picker_dir: Option<&str>, conf
             if !tab.panes.is_empty() {
                 let p = &tab.panes[0];
                 let pdir = pane_dir(p, &dir);
-                let wt = if p.name.is_empty() { None } else { Some(p.name.as_str()) };
+                let wt = if p.name.is_empty() {
+                    None
+                } else {
+                    Some(p.name.as_str())
+                };
                 attach_and_exit(
                     None,
                     p.cmd.as_deref(),
@@ -205,7 +230,11 @@ fn exec_new_pane_what(tab_name: &str, what: &str, picker_dir: Option<&str>, conf
         "layout-pane" => {
             let (pane, tab) = find_layout_pane(&tabs, name);
             let dir = resolve_picker_dir(picker_dir, pane.dir.as_deref().or(tab.dir.as_deref()));
-            let wt = if pane.name.is_empty() { None } else { Some(pane.name.as_str()) };
+            let wt = if pane.name.is_empty() {
+                None
+            } else {
+                Some(pane.name.as_str())
+            };
             attach_and_exit(
                 None,
                 pane.cmd.as_deref(),
@@ -223,18 +252,30 @@ fn exec_new_pane_what(tab_name: &str, what: &str, picker_dir: Option<&str>, conf
             }
             for i in 1..tab_sessions.len() {
                 let s = tab_sessions[i];
-                let wt = if s.pane.is_empty() { None } else { Some(s.pane.as_str()) };
+                let wt = if s.pane.is_empty() {
+                    None
+                } else {
+                    Some(s.pane.as_str())
+                };
                 kitty_attach_moox(&s.id, wt);
             }
             let s = tab_sessions[0];
-            let wt = if s.pane.is_empty() { None } else { Some(s.pane.as_str()) };
+            let wt = if s.pane.is_empty() {
+                None
+            } else {
+                Some(s.pane.as_str())
+            };
             attach_and_exit(Some(&s.id), None, None, None, wt);
         }
         "existing-pane" => {
             let sessions = list_sessions();
             let session = sessions.iter().find(|s| s.id == name);
             let wt = session.and_then(|s| {
-                if s.pane.is_empty() { None } else { Some(s.pane.as_str()) }
+                if s.pane.is_empty() {
+                    None
+                } else {
+                    Some(s.pane.as_str())
+                }
             });
             attach_and_exit(Some(name), None, None, None, wt);
         }
@@ -263,6 +304,7 @@ fn build_picker_new_data(config: &Config) -> PickerData {
         item_type: ItemType::New,
         suffix: None,
         id: None,
+        pane_name: None,
     });
 
     for tab in &layout_tabs {
@@ -275,6 +317,7 @@ fn build_picker_new_data(config: &Config) -> PickerData {
             item_type: ItemType::Tab,
             suffix: None,
             id: None,
+            pane_name: None,
         });
         for pane in &tab.panes {
             layout_items.push(PanelItem {
@@ -285,6 +328,7 @@ fn build_picker_new_data(config: &Config) -> PickerData {
                 item_type: ItemType::Pane,
                 suffix: None,
                 id: None,
+                pane_name: None,
             });
         }
     }
@@ -297,6 +341,7 @@ fn build_picker_new_data(config: &Config) -> PickerData {
         item_type: ItemType::New,
         suffix: None,
         id: None,
+        pane_name: None,
     });
 
     let mut running_items = Vec::new();
@@ -312,6 +357,7 @@ fn build_picker_new_data(config: &Config) -> PickerData {
             item_type: ItemType::Tab,
             suffix: None,
             id: None,
+            pane_name: None,
         });
         for s in &tab_panes {
             running_items.push(PanelItem {
@@ -321,9 +367,23 @@ fn build_picker_new_data(config: &Config) -> PickerData {
                 indent: 1,
                 item_type: ItemType::Pane,
                 suffix: Some(running_pane_suffix(s)),
-                id: Some(s.id.clone()),
+                id: None,
+                pane_name: Some(s.pane.clone()),
             });
         }
+    }
+    if !tabs.is_empty() {
+        running_items.push(PanelItem::blank());
+        running_items.push(PanelItem {
+            label: format!("{} Open all tabs", I_NEW),
+            value: "open-all-tabs:".to_string(),
+            selectable: true,
+            indent: 0,
+            item_type: ItemType::New,
+            suffix: None,
+            id: None,
+            pane_name: None,
+        });
     }
 
     PickerData {
@@ -347,6 +407,7 @@ fn build_picker_pane_data(tab_name: &str, config: &Config) -> PickerData {
         item_type: ItemType::New,
         suffix: None,
         id: None,
+        pane_name: None,
     });
 
     for tab in &layout_tabs {
@@ -359,6 +420,7 @@ fn build_picker_pane_data(tab_name: &str, config: &Config) -> PickerData {
             item_type: ItemType::Tab,
             suffix: None,
             id: None,
+            pane_name: None,
         });
         for pane in &tab.panes {
             layout_items.push(PanelItem {
@@ -369,6 +431,7 @@ fn build_picker_pane_data(tab_name: &str, config: &Config) -> PickerData {
                 item_type: ItemType::Pane,
                 suffix: None,
                 id: None,
+                pane_name: None,
             });
         }
     }
@@ -381,6 +444,7 @@ fn build_picker_pane_data(tab_name: &str, config: &Config) -> PickerData {
         item_type: ItemType::New,
         suffix: None,
         id: None,
+        pane_name: None,
     });
 
     let mut running_items = Vec::new();
@@ -404,6 +468,7 @@ fn build_picker_pane_data(tab_name: &str, config: &Config) -> PickerData {
                 item_type: ItemType::Tab,
                 suffix: None,
                 id: None,
+                pane_name: None,
             });
         }
         running_items.push(PanelItem {
@@ -413,7 +478,8 @@ fn build_picker_pane_data(tab_name: &str, config: &Config) -> PickerData {
             indent: 1,
             item_type: ItemType::Pane,
             suffix: Some(running_pane_suffix(s)),
-            id: Some(s.id.clone()),
+            id: None,
+            pane_name: Some(s.pane.clone()),
         });
     }
 
@@ -427,15 +493,15 @@ fn build_picker_pane_data(tab_name: &str, config: &Config) -> PickerData {
 fn picker_new(config: &Config) {
     let config = config.clone();
     let config_for_closure = config.clone();
-    let result = run_picker(
-        move || build_picker_new_data(&config_for_closure),
-        &config,
-    );
+    let result = run_picker(move || build_picker_new_data(&config_for_closure), &config);
 
     match result.choice.as_deref() {
         Some("new:") => {
             let dir = result.dir.unwrap_or_else(|| {
-                std::env::current_dir().unwrap_or_default().display().to_string()
+                std::env::current_dir()
+                    .unwrap_or_default()
+                    .display()
+                    .to_string()
             });
             let tab_name = basename(&dir);
             let pn = config.default.name.as_deref().unwrap_or("Shell");
@@ -456,6 +522,9 @@ fn picker_new(config: &Config) {
                 .unwrap_or(1);
             process::exit(status);
         }
+        Some("open-all-tabs:") => {
+            open_all_running_tabs_and_exit();
+        }
         Some("new-shell:") => {
             let pn = config.default.name.as_deref().unwrap_or("Shell");
             // No tab context in z new picker, this shouldn't happen but handle gracefully
@@ -472,6 +541,38 @@ fn picker_new(config: &Config) {
         }
         None => {}
     }
+}
+
+fn open_all_running_tabs_and_exit() {
+    let sessions = list_sessions();
+    let tabs = unique_tabs(&sessions);
+
+    for tab_name in &tabs {
+        let tab_sessions = panes_for_tab(&sessions, tab_name);
+        if tab_sessions.is_empty() {
+            continue;
+        }
+
+        let first = tab_sessions[0];
+        let first_title = if first.pane.is_empty() {
+            None
+        } else {
+            Some(first.pane.as_str())
+        };
+        let tab_title = display_name(tab_name);
+        kitty_attach_moox_in_new_tab(&first.id, &tab_title, first_title);
+
+        for s in tab_sessions.iter().skip(1) {
+            let wt = if s.pane.is_empty() {
+                None
+            } else {
+                Some(s.pane.as_str())
+            };
+            kitty_attach_moox_in_tab(&s.id, "recent:0", wt);
+        }
+    }
+
+    process::exit(0);
 }
 
 fn picker_new_pane(tab_name: &str, config: &Config) {
@@ -510,10 +611,7 @@ fn picker_new_pane(tab_name: &str, config: &Config) {
     }
 }
 
-fn run_picker<F: Fn() -> PickerData + 'static>(
-    build_data: F,
-    config: &Config,
-) -> PickerResult {
+fn run_picker<F: Fn() -> PickerData + 'static>(build_data: F, config: &Config) -> PickerResult {
     use crossterm::{
         execute,
         terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -531,16 +629,10 @@ fn run_picker<F: Fn() -> PickerData + 'static>(
     let colors = config.colors.clone();
 
     let config_for_dir = config.clone();
-    let needs_dir = move |value: &str| -> Option<DirNeeds> {
-        check_needs_dir(value, &config_for_dir)
-    };
+    let needs_dir =
+        move |value: &str| -> Option<DirNeeds> { check_needs_dir(value, &config_for_dir) };
 
-    let mut app = ui::app::App::new(
-        data,
-        colors,
-        Box::new(needs_dir),
-        Box::new(build_data),
-    );
+    let mut app = ui::app::App::new(data, colors, Box::new(needs_dir), Box::new(build_data));
 
     loop {
         terminal.draw(|f| app.render(f)).unwrap();
@@ -702,7 +794,11 @@ fn find_layout_tab<'a>(tabs: &'a [LayoutTab], name: &str) -> &'a LayoutTab {
 fn find_layout_pane<'a>(tabs: &'a [LayoutTab], name: &str) -> (&'a LayoutPane, &'a LayoutTab) {
     let dot = name.find('.').unwrap_or(name.len());
     let tab_name = &name[..dot];
-    let pane_name = if dot < name.len() { &name[dot + 1..] } else { "" };
+    let pane_name = if dot < name.len() {
+        &name[dot + 1..]
+    } else {
+        ""
+    };
 
     let tab = find_layout_tab(tabs, tab_name);
     let pane = if pane_name.is_empty() {
@@ -796,15 +892,17 @@ fn check_needs_dir(value: &str, config: &Config) -> Option<DirNeeds> {
             let dot = name.find('.').unwrap_or(name.len());
             let tab_name = &name[..dot];
             if let Some(tab) = tabs.iter().find(|t| t.name == tab_name) {
-                let pane_name = if dot < name.len() { &name[dot + 1..] } else { "" };
+                let pane_name = if dot < name.len() {
+                    &name[dot + 1..]
+                } else {
+                    ""
+                };
                 let pane = if pane_name.is_empty() {
                     tab.panes.first()
                 } else {
                     tab.panes.iter().find(|p| p.name == pane_name)
                 };
-                let dir = pane
-                    .and_then(|p| p.dir.as_deref())
-                    .or(tab.dir.as_deref());
+                let dir = pane.and_then(|p| p.dir.as_deref()).or(tab.dir.as_deref());
                 return check_dir_needs_input(dir);
             }
         }

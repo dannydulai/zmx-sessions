@@ -19,6 +19,7 @@ pub struct PanelItem {
     pub item_type: ItemType,
     pub suffix: Option<String>,
     pub id: Option<String>,
+    pub pane_name: Option<String>, // raw pane name for preview title
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -40,6 +41,7 @@ impl PanelItem {
             item_type: ItemType::Blank,
             suffix: None,
             id: None,
+            pane_name: None,
         }
     }
 }
@@ -127,6 +129,7 @@ pub struct PanelWidget<'a> {
     pub state: &'a mut PanelState,
     pub title: &'a str,
     pub focused: bool,
+    pub show_selection_when_unfocused: bool,
     pub colors: &'a crate::config::Colors,
 }
 
@@ -160,13 +163,12 @@ impl<'a> PanelWidget<'a> {
             }
 
             let item = &self.state.items[item_idx];
-            let is_selected = self.focused
-                && self
-                    .state
-                    .selectable_indices
-                    .get(self.state.cursor_idx)
-                    .map(|&i| i == item_idx)
-                    .unwrap_or(false);
+            let is_selected = self
+                .state
+                .selectable_indices
+                .get(self.state.cursor_idx)
+                .map(|&i| i == item_idx)
+                .unwrap_or(false);
 
             let indent = "  ".repeat(item.indent as usize);
             let label_text = format!("  {}{}", indent, item.label);
@@ -185,13 +187,26 @@ impl<'a> PanelWidget<'a> {
 
             let inner_width = inner.width as usize;
 
-            if is_selected {
+            let show_unfocused_selection = self.show_selection_when_unfocused
+                && matches!(item.item_type, ItemType::Pane);
+
+            if is_selected && (self.focused || show_unfocused_selection) {
                 let sel = &self.colors.selection;
-                let bg = parse_color(sel.bg.as_deref()).unwrap_or(Color::Blue);
-                let fg = parse_color(sel.fg.as_deref()).unwrap_or(Color::White);
+                let bg = if self.focused {
+                    parse_color(sel.bg.as_deref()).unwrap_or(Color::Blue)
+                } else {
+                    Color::Rgb(0x12, 0x12, 0x12)
+                };
+                let fg = if self.focused {
+                    parse_color(sel.fg.as_deref()).unwrap_or(Color::White)
+                } else {
+                    Color::Cyan
+                };
                 let mut style = Style::default().fg(fg).bg(bg);
-                if sel.bold {
+                if self.focused && sel.bold {
                     style = style.add_modifier(Modifier::BOLD);
+                } else if !self.focused {
+                    style = style.add_modifier(Modifier::DIM);
                 }
 
                 // Render full-width selection bar
@@ -201,8 +216,7 @@ impl<'a> PanelWidget<'a> {
                 let truncated = truncate_str(&padded, inner_width);
                 buf.set_string(inner.x, y, &truncated, style);
             } else if !item.selectable {
-                let style = item_style(&item.item_type, self.colors)
-                    .add_modifier(Modifier::DIM);
+                let style = item_style(&item.item_type, self.colors).add_modifier(Modifier::DIM);
                 let content = label_text;
                 let pad = inner_width.saturating_sub(visible_width(&content));
                 let full = format!("{}{}", content, " ".repeat(pad));

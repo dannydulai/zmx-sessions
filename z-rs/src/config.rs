@@ -148,14 +148,8 @@ fn normalize_style(spec: &serde_yaml::Value) -> Style {
             dim: false,
         },
         serde_yaml::Value::Mapping(m) => {
-            let fg = m
-                .get("fg")
-                .and_then(|v| v.as_str())
-                .map(normalize_color);
-            let bg = m
-                .get("bg")
-                .and_then(|v| v.as_str())
-                .map(normalize_color);
+            let fg = m.get("fg").and_then(|v| v.as_str()).map(normalize_color);
+            let bg = m.get("bg").and_then(|v| v.as_str()).map(normalize_color);
             let bold = m.get("bold").and_then(|v| v.as_bool()).unwrap_or(false);
             let italic = m.get("italic").and_then(|v| v.as_bool()).unwrap_or(false);
             let dim = m.get("dim").and_then(|v| v.as_bool()).unwrap_or(false);
@@ -185,10 +179,22 @@ impl Default for Style {
 
 fn default_colors() -> Colors {
     Colors {
-        tab: Style { fg: Some("yellow".into()), ..Default::default() },
-        pane: Style { fg: Some("green".into()), ..Default::default() },
-        new: Style { fg: Some("cyan".into()), ..Default::default() },
-        running: Style { dim: true, ..Default::default() },
+        tab: Style {
+            fg: Some("yellow".into()),
+            ..Default::default()
+        },
+        pane: Style {
+            fg: Some("green".into()),
+            ..Default::default()
+        },
+        new: Style {
+            fg: Some("cyan".into()),
+            ..Default::default()
+        },
+        running: Style {
+            dim: true,
+            ..Default::default()
+        },
         selection: Style {
             fg: Some("white".into()),
             bg: Some("blue".into()),
@@ -201,11 +207,21 @@ fn default_colors() -> Colors {
 fn resolve_colors(raw: &serde_yaml::Value) -> Colors {
     let mut colors = default_colors();
     if let serde_yaml::Value::Mapping(m) = raw {
-        if let Some(v) = m.get("tab") { colors.tab = normalize_style(v); }
-        if let Some(v) = m.get("pane") { colors.pane = normalize_style(v); }
-        if let Some(v) = m.get("new") { colors.new = normalize_style(v); }
-        if let Some(v) = m.get("running") { colors.running = normalize_style(v); }
-        if let Some(v) = m.get("selection") { colors.selection = normalize_style(v); }
+        if let Some(v) = m.get("tab") {
+            colors.tab = normalize_style(v);
+        }
+        if let Some(v) = m.get("pane") {
+            colors.pane = normalize_style(v);
+        }
+        if let Some(v) = m.get("new") {
+            colors.new = normalize_style(v);
+        }
+        if let Some(v) = m.get("running") {
+            colors.running = normalize_style(v);
+        }
+        if let Some(v) = m.get("selection") {
+            colors.selection = normalize_style(v);
+        }
     }
     colors
 }
@@ -346,18 +362,26 @@ pub fn resolve_dir(dir: &str) -> String {
 /// Display name for TUI: display > name > cmd > "Shell"
 pub fn pane_display(p: &LayoutPane) -> String {
     if let Some(d) = &p.display {
-        if !d.is_empty() { return d.clone(); }
+        if !d.is_empty() {
+            return d.clone();
+        }
     }
-    if !p.name.is_empty() { return p.name.clone(); }
+    if !p.name.is_empty() {
+        return p.name.clone();
+    }
     if let Some(c) = &p.cmd {
-        if !c.is_empty() { return c.clone(); }
+        if !c.is_empty() {
+            return c.clone();
+        }
     }
     "Shell".to_string()
 }
 
 /// Name for moox var: name > "Shell"
 pub fn pane_name(p: &LayoutPane) -> String {
-    if !p.name.is_empty() { return p.name.clone(); }
+    if !p.name.is_empty() {
+        return p.name.clone();
+    }
     "Shell".to_string()
 }
 

@@ -105,7 +105,9 @@ impl DirInputState {
                 }
             }
 
-            KeyCode::Right | KeyCode::Char(' ') if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Right | KeyCode::Char(' ')
+                if !key.modifiers.contains(KeyModifiers::CONTROL) =>
+            {
                 if self.sel_idx >= 0 && (self.sel_idx as usize) < self.subdirs.len() {
                     let sel = &self.subdirs[self.sel_idx as usize];
                     if sel == ".." {
@@ -199,10 +201,7 @@ impl DirInputState {
 
         // Path input line
         let path_display = if self.path.len() > inner_w - 2 {
-            format!(
-                "\u{2026}{}",
-                &self.path[self.path.len() - inner_w + 3..]
-            )
+            format!("\u{2026}{}", &self.path[self.path.len() - inner_w + 3..])
         } else {
             self.path.clone()
         };
@@ -218,12 +217,7 @@ impl DirInputState {
         // Separator
         let sep_y = inner.y + 1;
         let sep = format!("{}{}{}", "\u{251c}", "\u{2500}".repeat(inner_w), "\u{2524}");
-        buf.set_string(
-            popup_area.x,
-            sep_y,
-            &sep,
-            Style::default().fg(Color::Cyan),
-        );
+        buf.set_string(popup_area.x, sep_y, &sep, Style::default().fg(Color::Cyan));
 
         // Entries
         let entries_start = sep_y + 1;
@@ -303,10 +297,7 @@ fn list_subdirs(path_str: &str) -> Vec<String> {
                 .filter_map(|e| e.ok())
                 .filter(|e| {
                     e.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
-                        && !e
-                            .file_name()
-                            .to_string_lossy()
-                            .starts_with('.')
+                        && !e.file_name().to_string_lossy().starts_with('.')
                 })
                 .map(|e| e.file_name().to_string_lossy().to_string())
                 .collect();
