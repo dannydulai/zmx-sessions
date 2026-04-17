@@ -1,19 +1,18 @@
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Widget, Wrap},
-    Frame, Terminal,
+    widgets::{Block, Borders, Clear, Paragraph, Widget},
+    Frame,
 };
-use std::collections::HashMap;
-use std::time::Duration;
 
 use super::dir_input::{DirInputResult, DirInputState};
-use super::panel::{ItemType, PanelItem, PanelState, PanelWidget};
-use crate::config::{self, Colors, Config, LayoutTab};
-use crate::moox::{self, MooxSession};
+use super::panel::{PanelItem, PanelState, PanelWidget};
+use crate::config::{self, Colors};
+use crate::moox;
+use crate::picker_action::PickerAction;
 
 // ---------------------------------------------------------------------------
 // Picker data + result
@@ -26,7 +25,7 @@ pub struct PickerData {
 }
 
 pub struct PickerResult {
-    pub choice: Option<String>,
+    pub action: Option<PickerAction>,
     pub dir: Option<String>,
 }
 
@@ -162,7 +161,7 @@ pub struct App {
     left_title: String,
     result: PickerResult,
     should_quit: bool,
-    needs_dir_fn: Box<dyn Fn(&str) -> Option<DirNeeds>>,
+    needs_dir_fn: Box<dyn Fn(&PickerAction) -> Option<DirNeeds>>,
     refresh_fn: Box<dyn Fn() -> PickerData>,
     pub kill_poll_ids: Option<Vec<String>>,
     kill_poll_count: u32,
@@ -172,7 +171,7 @@ impl App {
     pub fn new(
         data: PickerData,
         colors: Colors,
-        needs_dir_fn: Box<dyn Fn(&str) -> Option<DirNeeds>>,
+        needs_dir_fn: Box<dyn Fn(&PickerAction) -> Option<DirNeeds>>,
         refresh_fn: Box<dyn Fn() -> PickerData>,
     ) -> Self {
         let left_title = data
@@ -188,7 +187,7 @@ impl App {
             colors,
             left_title,
             result: PickerResult {
-                choice: None,
+                action: None,
                 dir: None,
             },
             should_quit: false,
@@ -216,9 +215,13 @@ impl App {
     fn update_preview(&mut self) {
         // Show preview for the selected running pane
         if let Some(item) = self.running_panel.selected_item() {
-            if item.value.starts_with("existing-pane:") {
-                let id = &item.value["existing-pane:".len()..];
-                let pane_name = item.pane_name.as_deref().unwrap_or("");
+            if let Some(PickerAction::OpenExistingPane {
+                session_id,
+                pane_title,
+            }) = item.action.as_ref()
+            {
+                let pane_name = pane_title.as_deref().unwrap_or("");
+                let id = session_id.as_str();
                 self.preview.load(id, pane_name);
                 return;
             }
@@ -228,9 +231,13 @@ impl App {
 
     fn reload_preview_preserving_scroll(&mut self) {
         if let Some(item) = self.running_panel.selected_item() {
-            if item.value.starts_with("existing-pane:") {
-                let id = &item.value["existing-pane:".len()..];
-                let pane_name = item.pane_name.as_deref().unwrap_or("");
+            if let Some(PickerAction::OpenExistingPane {
+                session_id,
+                pane_title,
+            }) = item.action.as_ref()
+            {
+                let pane_name = pane_title.as_deref().unwrap_or("");
+                let id = session_id.as_str();
                 if id == self.preview.session_id {
                     self.preview.pane_name = pane_name.to_string();
                     self.preview.refresh();
@@ -269,28 +276,16 @@ impl App {
         self.reload_preview_preserving_scroll();
     }
 
-    fn handle_select(&mut self, value: String) {
-        if value == "new:" {
-            let check = (self.needs_dir_fn)(&value);
-            let initial = check.map(|c| c.initial).unwrap_or_else(|| {
-                std::env::current_dir()
-                    .unwrap_or_default()
-                    .display()
-                    .to_string()
-            });
+    fn handle_select(&mut self, action: PickerAction) {
+        if let Some(check) = (self.needs_dir_fn)(&action) {
+            let initial = check.initial;
             self.overlay =
                 Overlay::DirInput(DirInputState::new(&initial, "Select start directory"));
+            self.result.action = Some(action);
             return;
         }
 
-        if let Some(check) = (self.needs_dir_fn)(&value) {
-            self.overlay =
-                Overlay::DirInput(DirInputState::new(&check.initial, "Select start directory"));
-            self.result.choice = Some(value);
-            return;
-        }
-
-        self.result.choice = Some(value);
+        self.result.action = Some(action);
         self.should_quit = true;
     }
 
@@ -309,15 +304,12 @@ impl App {
             Overlay::DirInput(state) => {
                 match state.handle_key(key) {
                     DirInputResult::Submit(dir) => {
-                        if self.result.choice.is_none() {
-                            self.result.choice = Some("new:".to_string());
-                        }
                         self.result.dir = Some(dir);
                         self.overlay = Overlay::None;
                         self.should_quit = true;
                     }
                     DirInputResult::Cancel => {
-                        self.result.choice = None;
+                        self.result.action = None;
                         self.result.dir = None;
                         self.overlay = Overlay::None;
                     }
@@ -447,15 +439,14 @@ impl App {
                 }
             }
             KeyCode::Char('K') => {
-                if let Some(value) = self.active_state().selected_value().map(|s| s.to_string()) {
-                    if value.starts_with("existing-pane:") {
-                        let id = value["existing-pane:".len()..].to_string();
+                if let Some(action) = self.active_state().selected_action().cloned() {
+                    if let PickerAction::OpenExistingPane { session_id, .. } = action {
+                        let id = session_id;
                         self.overlay = Overlay::KillConfirm {
                             ids: vec![id.clone()],
                             label: id[..8.min(id.len())].to_string(),
                         };
-                    } else if value.starts_with("existing-tab:") {
-                        let tab_name = value["existing-tab:".len()..].to_string();
+                    } else if let PickerAction::OpenExistingTab { tab_name } = action {
                         let sessions = moox::list_sessions();
                         let panes = moox::panes_for_tab(&sessions, &tab_name);
                         if !panes.is_empty() {
@@ -474,9 +465,8 @@ impl App {
             }
             KeyCode::Enter => {
                 if self.active_panel != ActivePanel::Preview {
-                    if let Some(value) = self.active_state().selected_value().map(|s| s.to_string())
-                    {
-                        self.handle_select(value);
+                    if let Some(action) = self.active_state().selected_action().cloned() {
+                        self.handle_select(action);
                     }
                 }
             }
@@ -696,12 +686,11 @@ impl App {
             let ids = self.kill_poll_ids.as_ref().unwrap();
             let id_set: std::collections::HashSet<_> = ids.iter().collect();
             let still_alive = self.running_panel.items.iter().any(|item| {
-                if item.value.starts_with("existing-pane:") {
-                    let id = &item.value["existing-pane:".len()..];
-                    id_set.contains(&id.to_string())
-                } else {
-                    false
-                }
+                matches!(
+                    item.action.as_ref(),
+                    Some(PickerAction::OpenExistingPane { session_id, .. })
+                        if id_set.contains(session_id)
+                )
             });
             if !still_alive || self.kill_poll_count >= 50 {
                 self.kill_poll_ids = None;

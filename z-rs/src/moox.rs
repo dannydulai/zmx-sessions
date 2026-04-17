@@ -4,7 +4,6 @@ use ratatui::{
 };
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 use std::process::Command;
 
 // ---------------------------------------------------------------------------
@@ -109,7 +108,7 @@ pub fn time_ago(created: u64) -> String {
     // Older than a week: show date
     let secs = created as i64;
     // Simple date formatting without chrono
-    let days_since_epoch = secs / 86400;
+    let _days_since_epoch = secs / 86400;
     // Just show relative
     format!("{}w ago", diff / 604800)
 }

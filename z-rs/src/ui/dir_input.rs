@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Widget},
 };
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 // ---------------------------------------------------------------------------
 // Directory input state
@@ -139,7 +139,7 @@ impl DirInputState {
                 if key.modifiers.contains(KeyModifiers::CONTROL) =>
             {
                 // Delete back to previous slash
-                let mut s = if self.path.ends_with('/') {
+                let s = if self.path.ends_with('/') {
                     self.path[..self.path.len() - 1].to_string()
                 } else {
                     self.path.clone()

@@ -2,9 +2,9 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Modifier, Style},
-    text::{Line, Span},
     widgets::{Block, Borders, Widget},
 };
+use crate::picker_action::PickerAction;
 
 // ---------------------------------------------------------------------------
 // Panel item
@@ -13,13 +13,12 @@ use ratatui::{
 #[derive(Debug, Clone)]
 pub struct PanelItem {
     pub label: String,
-    pub value: String,
+    pub action: Option<PickerAction>,
     pub selectable: bool,
     pub indent: u16,
     pub item_type: ItemType,
     pub suffix: Option<String>,
     pub id: Option<String>,
-    pub pane_name: Option<String>, // raw pane name for preview title
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -35,13 +34,12 @@ impl PanelItem {
     pub fn blank() -> Self {
         PanelItem {
             label: String::new(),
-            value: String::new(),
+            action: None,
             selectable: false,
             indent: 0,
             item_type: ItemType::Blank,
             suffix: None,
             id: None,
-            pane_name: None,
         }
     }
 }
@@ -95,11 +93,11 @@ impl PanelState {
         }
     }
 
-    pub fn selected_value(&self) -> Option<&str> {
+    pub fn selected_action(&self) -> Option<&PickerAction> {
         self.selectable_indices
             .get(self.cursor_idx)
             .and_then(|&idx| self.items.get(idx))
-            .map(|item| item.value.as_str())
+            .and_then(|item| item.action.as_ref())
     }
 
     pub fn selected_item(&self) -> Option<&PanelItem> {

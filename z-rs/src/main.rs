@@ -1,14 +1,16 @@
 mod config;
 mod moox;
+mod picker_action;
 mod ui;
 
 use config::{display_name, pane_display, pane_name, resolve_dir, Config, LayoutPane, LayoutTab};
 use moox::{
     get_kitty_tab_title, kitty_attach_moox, kitty_attach_moox_in_new_tab,
-    kitty_attach_moox_in_tab, kitty_launch_moox, list_sessions, moox_attach, moox_kill,
-    panes_for_tab, running_pane_icon, running_pane_suffix, set_kitty_tab_title,
-    set_kitty_window_title, unique_tabs, MooxSession,
+    kitty_attach_moox_in_tab, kitty_launch_moox, list_sessions, moox_attach, panes_for_tab,
+    running_pane_icon, running_pane_suffix, set_kitty_tab_title, set_kitty_window_title,
+    unique_tabs,
 };
+use picker_action::PickerAction;
 use ui::app::{DirNeeds, PickerData, PickerResult};
 use ui::panel::{ItemType, PanelItem};
 
@@ -20,7 +22,6 @@ use std::process;
 const I_NEW: &str = "\u{f067}";
 const I_TAB: &str = "\u{eea8}";
 const I_PANE: &str = "\u{f489}";
-const I_DISCONNECTED: &str = "\u{f444}";
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -57,24 +58,24 @@ fn handle_new(args: &[String], config: &Config) {
     if args.first().map(|s| s.as_str()) == Some("pane") {
         let tab_name = get_kitty_tab_title();
         if let Some(tab_name) = tab_name {
-            let what = args.get(1).map(|s| s.as_str());
-            if let Some(what) = what {
-                exec_new_pane_what(&tab_name, what, None, config);
+            if let Some(what) = args.get(1).map(|s| s.as_str()) {
+                let action = action_from_cli(what, Some(&tab_name));
+                execute_picker_action(action, None, config);
             }
             picker_new_pane(&tab_name, config);
         } else {
-            let what = args.get(1).map(|s| s.as_str());
-            if let Some(what) = what {
-                exec_new_what(what, None, config);
+            if let Some(what) = args.get(1).map(|s| s.as_str()) {
+                let action = action_from_cli(what, None);
+                execute_picker_action(action, None, config);
             }
             picker_new(config);
         }
         return;
     }
 
-    let what = args.first().map(|s| s.as_str());
-    if let Some(what) = what {
-        exec_new_what(what, None, config);
+    if let Some(what) = args.first().map(|s| s.as_str()) {
+        let action = action_from_cli(what, None);
+        execute_picker_action(action, None, config);
     }
 
     if let Some(tab_name) = get_kitty_tab_title() {
@@ -85,118 +86,52 @@ fn handle_new(args: &[String], config: &Config) {
 }
 
 // ---------------------------------------------------------------------------
-// Exec helpers
+// Action execution
 // ---------------------------------------------------------------------------
 
-fn exec_new_what(what: &str, picker_dir: Option<&str>, config: &Config) {
-    let (kind, name) = parse_what(what);
+fn execute_picker_action(action: PickerAction, picker_dir: Option<&str>, config: &Config) {
     let tabs = load_validated_tabs();
 
-    match kind {
-        "new" => {
-            set_kitty_tab_title(name);
-            attach_and_exit(None, None, None, Some(vars(name, "Shell")), None);
-        }
-        "layout-tab" => {
-            let tab = find_layout_tab(&tabs, name);
-            let dir = resolve_picker_dir(picker_dir, tab.dir.as_deref());
+    match action {
+        PickerAction::CreateDefaultTabShell => {
+            let dir = picker_dir
+                .map(|d| d.to_string())
+                .unwrap_or_else(|| {
+                    std::env::current_dir()
+                        .unwrap_or_default()
+                        .display()
+                        .to_string()
+                });
             let tab_name = basename(&dir);
+            let pn = config.default.name.as_deref().unwrap_or("Shell");
             set_kitty_tab_title(&tab_name);
-
-            for i in 1..tab.panes.len() {
-                let p = &tab.panes[i];
-                let pdir = pane_dir(p, &dir);
-                kitty_launch_moox(
-                    p.cmd.as_deref(),
-                    Some(&pdir),
-                    Some(&vars(&tab_name, &pane_name(p))),
-                );
-            }
-            if !tab.panes.is_empty() {
-                let p = &tab.panes[0];
-                let pdir = pane_dir(p, &dir);
-                let wt = if p.name.is_empty() {
-                    None
-                } else {
-                    Some(p.name.as_str())
-                };
-                attach_and_exit(
-                    None,
-                    p.cmd.as_deref(),
-                    Some(&pdir),
-                    Some(vars(&tab_name, &pane_name(p))),
-                    wt,
-                );
-            }
-        }
-        "layout-pane" => {
-            let (pane, tab) = find_layout_pane(&tabs, name);
-            let dir = resolve_picker_dir(picker_dir, pane.dir.as_deref().or(tab.dir.as_deref()));
-            let tab_name = basename(&dir);
-            set_kitty_tab_title(&tab_name);
-            let wt = if pane.name.is_empty() {
-                None
-            } else {
-                Some(pane.name.as_str())
-            };
             attach_and_exit(
                 None,
-                pane.cmd.as_deref(),
+                config.default.cmd.as_deref(),
                 Some(&dir),
-                Some(vars(&tab_name, &pane_name(pane))),
-                wt,
+                Some(vars(&tab_name, pn)),
+                config.default.name.as_deref(),
             );
         }
-        "existing-tab" => {
-            let sessions = list_sessions();
-            let tab_sessions = panes_for_tab(&sessions, name);
-            if tab_sessions.is_empty() {
-                eprintln!("No running sessions in tab: {}", name);
-                process::exit(1);
-            }
-            for i in 1..tab_sessions.len() {
-                let s = tab_sessions[i];
-                let wt = if s.pane.is_empty() {
-                    None
-                } else {
-                    Some(s.pane.as_str())
-                };
-                kitty_attach_moox(&s.id, wt);
-            }
-            let s = tab_sessions[0];
-            let wt = if s.pane.is_empty() {
-                None
-            } else {
-                Some(s.pane.as_str())
-            };
-            attach_and_exit(Some(&s.id), None, None, None, wt);
+        PickerAction::CreateDefaultPaneShell { tab_name } => {
+            let pn = config.default.name.as_deref().unwrap_or("Shell");
+            attach_and_exit(
+                None,
+                config.default.cmd.as_deref(),
+                picker_dir,
+                Some(vars(&tab_name, pn)),
+                config.default.name.as_deref(),
+            );
         }
-        "existing-pane" => {
-            let sessions = list_sessions();
-            let session = sessions.iter().find(|s| s.id == name);
-            let wt = session.and_then(|s| {
-                if s.pane.is_empty() {
-                    None
-                } else {
-                    Some(s.pane.as_str())
-                }
-            });
-            attach_and_exit(Some(name), None, None, None, wt);
+        PickerAction::CreateNamedTab { tab_name } => {
+            set_kitty_tab_title(&tab_name);
+            attach_and_exit(None, None, None, Some(vars(&tab_name, "Shell")), None);
         }
-        _ => {}
-    }
-}
-
-fn exec_new_pane_what(tab_name: &str, what: &str, picker_dir: Option<&str>, config: &Config) {
-    let (kind, name) = parse_what(what);
-    let tabs = load_validated_tabs();
-
-    match kind {
-        "new" => {
-            attach_and_exit(None, None, None, Some(vars(tab_name, name)), None);
+        PickerAction::CreateNamedPane { tab_name, pane_name } => {
+            attach_and_exit(None, None, None, Some(vars(&tab_name, &pane_name)), None);
         }
-        "layout-tab" => {
-            let tab = find_layout_tab(&tabs, name);
+        PickerAction::OpenLayoutTab { tab_name } => {
+            let tab = find_layout_tab(&tabs, &tab_name);
             let dir = resolve_picker_dir(picker_dir, tab.dir.as_deref());
             let tab_name_resolved = basename(&dir);
             set_kitty_tab_title(&tab_name_resolved);
@@ -227,8 +162,16 @@ fn exec_new_pane_what(tab_name: &str, what: &str, picker_dir: Option<&str>, conf
                 );
             }
         }
-        "layout-pane" => {
-            let (pane, tab) = find_layout_pane(&tabs, name);
+        PickerAction::OpenLayoutPane {
+            tab_name,
+            pane_name: pane_name_opt,
+        } => {
+            let name = if let Some(pane_name) = pane_name_opt {
+                format!("{}.{}", tab_name, pane_name)
+            } else {
+                tab_name
+            };
+            let (pane, tab) = find_layout_pane(&tabs, &name);
             let dir = resolve_picker_dir(picker_dir, pane.dir.as_deref().or(tab.dir.as_deref()));
             let wt = if pane.name.is_empty() {
                 None
@@ -239,15 +182,15 @@ fn exec_new_pane_what(tab_name: &str, what: &str, picker_dir: Option<&str>, conf
                 None,
                 pane.cmd.as_deref(),
                 Some(&dir),
-                Some(vars(tab_name, &pane_name(pane))),
+                Some(vars(&tab.name, &pane_name(pane))),
                 wt,
             );
         }
-        "existing-tab" => {
+        PickerAction::OpenExistingTab { tab_name } => {
             let sessions = list_sessions();
-            let tab_sessions = panes_for_tab(&sessions, name);
+            let tab_sessions = panes_for_tab(&sessions, &tab_name);
             if tab_sessions.is_empty() {
-                eprintln!("No running sessions in tab: {}", name);
+                eprintln!("No running sessions in tab: {}", tab_name);
                 process::exit(1);
             }
             for i in 1..tab_sessions.len() {
@@ -267,21 +210,22 @@ fn exec_new_pane_what(tab_name: &str, what: &str, picker_dir: Option<&str>, conf
             };
             attach_and_exit(Some(&s.id), None, None, None, wt);
         }
-        "existing-pane" => {
-            let sessions = list_sessions();
-            let session = sessions.iter().find(|s| s.id == name);
-            let wt = session.and_then(|s| {
-                if s.pane.is_empty() {
-                    None
-                } else {
-                    Some(s.pane.as_str())
-                }
-            });
-            attach_and_exit(Some(name), None, None, None, wt);
+        PickerAction::OpenExistingPane {
+            session_id,
+            pane_title,
+        } => {
+            attach_and_exit(Some(&session_id), None, None, None, pane_title.as_deref());
         }
-        _ => {
-            eprintln!("Invalid what for 'z new pane': {}", what);
-            process::exit(1);
+        PickerAction::OpenAllRunningTabs => {
+            open_all_running_tabs_and_exit();
+        }
+        PickerAction::RawShell => {
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+            let status = std::process::Command::new(&shell)
+                .status()
+                .map(|s| s.code().unwrap_or(1))
+                .unwrap_or(1);
+            process::exit(status);
         }
     }
 }
@@ -290,7 +234,7 @@ fn exec_new_pane_what(tab_name: &str, what: &str, picker_dir: Option<&str>, conf
 // Pickers
 // ---------------------------------------------------------------------------
 
-fn build_picker_new_data(config: &Config) -> PickerData {
+fn build_picker_new_data(_config: &Config) -> PickerData {
     let layout_tabs = load_validated_tabs();
     let sessions = list_sessions();
 
@@ -298,50 +242,51 @@ fn build_picker_new_data(config: &Config) -> PickerData {
     layout_items.push(PanelItem::blank());
     layout_items.push(PanelItem {
         label: format!("{} New Shell...", I_NEW),
-        value: "new:".to_string(),
+        action: Some(PickerAction::CreateDefaultTabShell),
         selectable: true,
         indent: 0,
         item_type: ItemType::New,
         suffix: None,
         id: None,
-        pane_name: None,
     });
 
     for tab in &layout_tabs {
         layout_items.push(PanelItem::blank());
         layout_items.push(PanelItem {
             label: format!("{} {}", I_TAB, display_name(&tab.name)),
-            value: format!("layout-tab:{}", tab.name),
+            action: Some(PickerAction::OpenLayoutTab {
+                tab_name: tab.name.clone(),
+            }),
             selectable: true,
             indent: 0,
             item_type: ItemType::Tab,
             suffix: None,
             id: None,
-            pane_name: None,
         });
         for pane in &tab.panes {
             layout_items.push(PanelItem {
                 label: format!("{} {}", I_PANE, display_name(&pane_display(pane))),
-                value: format!("layout-pane:{}.{}", tab.name, pane.name),
+                action: Some(PickerAction::OpenLayoutPane {
+                    tab_name: tab.name.clone(),
+                    pane_name: Some(pane.name.clone()),
+                }),
                 selectable: true,
                 indent: 1,
                 item_type: ItemType::Pane,
                 suffix: None,
                 id: None,
-                pane_name: None,
             });
         }
     }
     layout_items.push(PanelItem::blank());
     layout_items.push(PanelItem {
         label: format!("{} Raw Shell", I_NEW),
-        value: "shell:".to_string(),
+        action: Some(PickerAction::RawShell),
         selectable: true,
         indent: 0,
         item_type: ItemType::New,
         suffix: None,
         id: None,
-        pane_name: None,
     });
 
     let mut running_items = Vec::new();
@@ -351,24 +296,31 @@ fn build_picker_new_data(config: &Config) -> PickerData {
         running_items.push(PanelItem::blank());
         running_items.push(PanelItem {
             label: format!("{} {}", I_TAB, display_name(tab_name)),
-            value: format!("existing-tab:{}", tab_name),
+            action: Some(PickerAction::OpenExistingTab {
+                tab_name: tab_name.clone(),
+            }),
             selectable: true,
             indent: 0,
             item_type: ItemType::Tab,
             suffix: None,
             id: None,
-            pane_name: None,
         });
         for s in &tab_panes {
             running_items.push(PanelItem {
                 label: format!("{} {}", running_pane_icon(s), display_name(&s.pane)),
-                value: format!("existing-pane:{}", s.id),
+                action: Some(PickerAction::OpenExistingPane {
+                    session_id: s.id.clone(),
+                    pane_title: if s.pane.is_empty() {
+                        None
+                    } else {
+                        Some(s.pane.clone())
+                    },
+                }),
                 selectable: true,
                 indent: 1,
                 item_type: ItemType::Pane,
                 suffix: Some(running_pane_suffix(s)),
                 id: None,
-                pane_name: Some(s.pane.clone()),
             });
         }
     }
@@ -376,13 +328,12 @@ fn build_picker_new_data(config: &Config) -> PickerData {
         running_items.push(PanelItem::blank());
         running_items.push(PanelItem {
             label: format!("{} Open all tabs", I_NEW),
-            value: "open-all-tabs:".to_string(),
+            action: Some(PickerAction::OpenAllRunningTabs),
             selectable: true,
             indent: 0,
             item_type: ItemType::New,
             suffix: None,
             id: None,
-            pane_name: None,
         });
     }
 
@@ -393,7 +344,7 @@ fn build_picker_new_data(config: &Config) -> PickerData {
     }
 }
 
-fn build_picker_pane_data(tab_name: &str, config: &Config) -> PickerData {
+fn build_picker_pane_data(tab_name: &str, _config: &Config) -> PickerData {
     let layout_tabs = load_validated_tabs();
     let sessions = list_sessions();
 
@@ -401,50 +352,53 @@ fn build_picker_pane_data(tab_name: &str, config: &Config) -> PickerData {
     layout_items.push(PanelItem::blank());
     layout_items.push(PanelItem {
         label: format!("{} New Shell", I_NEW),
-        value: "new-shell:".to_string(),
+        action: Some(PickerAction::CreateDefaultPaneShell {
+            tab_name: tab_name.to_string(),
+        }),
         selectable: true,
         indent: 0,
         item_type: ItemType::New,
         suffix: None,
         id: None,
-        pane_name: None,
     });
 
     for tab in &layout_tabs {
         layout_items.push(PanelItem::blank());
         layout_items.push(PanelItem {
             label: format!("{} {}", I_TAB, display_name(&tab.name)),
-            value: format!("layout-tab:{}", tab.name),
+            action: Some(PickerAction::OpenLayoutTab {
+                tab_name: tab.name.clone(),
+            }),
             selectable: true,
             indent: 0,
             item_type: ItemType::Tab,
             suffix: None,
             id: None,
-            pane_name: None,
         });
         for pane in &tab.panes {
             layout_items.push(PanelItem {
                 label: format!("{} {}", I_PANE, display_name(&pane_display(pane))),
-                value: format!("layout-pane:{}.{}", tab.name, pane.name),
+                action: Some(PickerAction::OpenLayoutPane {
+                    tab_name: tab.name.clone(),
+                    pane_name: Some(pane.name.clone()),
+                }),
                 selectable: true,
                 indent: 1,
                 item_type: ItemType::Pane,
                 suffix: None,
                 id: None,
-                pane_name: None,
             });
         }
     }
     layout_items.push(PanelItem::blank());
     layout_items.push(PanelItem {
         label: format!("{} Raw Shell", I_NEW),
-        value: "shell:".to_string(),
+        action: Some(PickerAction::RawShell),
         selectable: true,
         indent: 0,
         item_type: ItemType::New,
         suffix: None,
         id: None,
-        pane_name: None,
     });
 
     let mut running_items = Vec::new();
@@ -462,24 +416,29 @@ fn build_picker_pane_data(tab_name: &str, config: &Config) -> PickerData {
             running_items.push(PanelItem::blank());
             running_items.push(PanelItem {
                 label: format!("{} {}", I_TAB, display_name(&s.tab)),
-                value: String::new(),
+                action: None,
                 selectable: false,
                 indent: 0,
                 item_type: ItemType::Tab,
                 suffix: None,
                 id: None,
-                pane_name: None,
             });
         }
         running_items.push(PanelItem {
             label: format!("{} {}", running_pane_icon(s), display_name(&s.pane)),
-            value: format!("existing-pane:{}", s.id),
+            action: Some(PickerAction::OpenExistingPane {
+                session_id: s.id.clone(),
+                pane_title: if s.pane.is_empty() {
+                    None
+                } else {
+                    Some(s.pane.clone())
+                },
+            }),
             selectable: true,
             indent: 1,
             item_type: ItemType::Pane,
             suffix: Some(running_pane_suffix(s)),
             id: None,
-            pane_name: Some(s.pane.clone()),
         });
     }
 
@@ -495,51 +454,8 @@ fn picker_new(config: &Config) {
     let config_for_closure = config.clone();
     let result = run_picker(move || build_picker_new_data(&config_for_closure), &config);
 
-    match result.choice.as_deref() {
-        Some("new:") => {
-            let dir = result.dir.unwrap_or_else(|| {
-                std::env::current_dir()
-                    .unwrap_or_default()
-                    .display()
-                    .to_string()
-            });
-            let tab_name = basename(&dir);
-            let pn = config.default.name.as_deref().unwrap_or("Shell");
-            set_kitty_tab_title(&tab_name);
-            attach_and_exit(
-                None,
-                config.default.cmd.as_deref(),
-                Some(&dir),
-                Some(vars(&tab_name, pn)),
-                config.default.name.as_deref(),
-            );
-        }
-        Some("shell:") => {
-            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-            let status = std::process::Command::new(&shell)
-                .status()
-                .map(|s| s.code().unwrap_or(1))
-                .unwrap_or(1);
-            process::exit(status);
-        }
-        Some("open-all-tabs:") => {
-            open_all_running_tabs_and_exit();
-        }
-        Some("new-shell:") => {
-            let pn = config.default.name.as_deref().unwrap_or("Shell");
-            // No tab context in z new picker, this shouldn't happen but handle gracefully
-            attach_and_exit(
-                None,
-                config.default.cmd.as_deref(),
-                result.dir.as_deref(),
-                None,
-                config.default.name.as_deref(),
-            );
-        }
-        Some(choice) => {
-            exec_new_what(choice, result.dir.as_deref(), &config);
-        }
-        None => {}
+    if let Some(action) = result.action {
+        execute_picker_action(action, result.dir.as_deref(), &config);
     }
 }
 
@@ -585,29 +501,8 @@ fn picker_new_pane(tab_name: &str, config: &Config) {
         &config,
     );
 
-    match result.choice.as_deref() {
-        Some("new-shell:") => {
-            let pn = config.default.name.as_deref().unwrap_or("Shell");
-            attach_and_exit(
-                None,
-                config.default.cmd.as_deref(),
-                result.dir.as_deref(),
-                Some(vars(&tab_name_owned, pn)),
-                config.default.name.as_deref(),
-            );
-        }
-        Some("shell:") => {
-            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-            let status = std::process::Command::new(&shell)
-                .status()
-                .map(|s| s.code().unwrap_or(1))
-                .unwrap_or(1);
-            process::exit(status);
-        }
-        Some(choice) => {
-            exec_new_pane_what(&tab_name_owned, choice, result.dir.as_deref(), &config);
-        }
-        None => {}
+    if let Some(action) = result.action {
+        execute_picker_action(action, result.dir.as_deref(), &config);
     }
 }
 
@@ -629,8 +524,9 @@ fn run_picker<F: Fn() -> PickerData + 'static>(build_data: F, config: &Config) -
     let colors = config.colors.clone();
 
     let config_for_dir = config.clone();
-    let needs_dir =
-        move |value: &str| -> Option<DirNeeds> { check_needs_dir(value, &config_for_dir) };
+    let needs_dir = move |action: &PickerAction| -> Option<DirNeeds> {
+        action_needs_dir(action, &config_for_dir)
+    };
 
     let mut app = ui::app::App::new(data, colors, Box::new(needs_dir), Box::new(build_data));
 
@@ -784,6 +680,61 @@ fn parse_what(what: &str) -> (&str, &str) {
     }
 }
 
+fn action_from_cli(what: &str, current_tab: Option<&str>) -> PickerAction {
+    let (kind, name) = parse_what(what);
+    match kind {
+        "new" => {
+            if let Some(tab_name) = current_tab {
+                PickerAction::CreateNamedPane {
+                    tab_name: tab_name.to_string(),
+                    pane_name: name.to_string(),
+                }
+            } else {
+                PickerAction::CreateNamedTab {
+                    tab_name: name.to_string(),
+                }
+            }
+        }
+        "layout-tab" => PickerAction::OpenLayoutTab {
+            tab_name: name.to_string(),
+        },
+        "layout-pane" => {
+            let dot = name.find('.').unwrap_or(name.len());
+            let tab_name = name[..dot].to_string();
+            let pane_name = if dot < name.len() {
+                Some(name[dot + 1..].to_string())
+            } else {
+                None
+            };
+            PickerAction::OpenLayoutPane { tab_name, pane_name }
+        }
+        "existing-tab" => PickerAction::OpenExistingTab {
+            tab_name: name.to_string(),
+        },
+        "existing-pane" => {
+            let pane_title = list_sessions()
+                .into_iter()
+                .find(|s| s.id == name)
+                .and_then(|s| if s.pane.is_empty() { None } else { Some(s.pane) });
+            PickerAction::OpenExistingPane {
+                session_id: name.to_string(),
+                pane_title,
+            }
+        }
+        "new-shell" => current_tab
+            .map(|tab_name| PickerAction::CreateDefaultPaneShell {
+                tab_name: tab_name.to_string(),
+            })
+            .unwrap_or(PickerAction::CreateDefaultTabShell),
+        "shell" => PickerAction::RawShell,
+        "open-all-tabs" => PickerAction::OpenAllRunningTabs,
+        _ => {
+            eprintln!("Invalid target: {}", what);
+            process::exit(1);
+        }
+    }
+}
+
 fn find_layout_tab<'a>(tabs: &'a [LayoutTab], name: &str) -> &'a LayoutTab {
     tabs.iter().find(|t| t.name == name).unwrap_or_else(|| {
         eprintln!("Tab not found: {}", name);
@@ -876,31 +827,23 @@ fn basename(path: &str) -> String {
         .unwrap_or_else(|| path.to_string())
 }
 
-fn check_needs_dir(value: &str, config: &Config) -> Option<DirNeeds> {
-    if value == "new:" || value == "new-shell:" {
-        return check_dir_needs_input(config.default.dir.as_deref());
-    }
-    let (kind, name) = parse_what(value);
+fn action_needs_dir(action: &PickerAction, config: &Config) -> Option<DirNeeds> {
     let tabs = config::load_tabs(); // Re-load is fine for this check
-    match kind {
-        "layout-tab" => {
-            if let Some(tab) = tabs.iter().find(|t| t.name == name) {
+    match action {
+        PickerAction::CreateDefaultTabShell | PickerAction::CreateDefaultPaneShell { .. } => {
+            return check_dir_needs_input(config.default.dir.as_deref());
+        }
+        PickerAction::OpenLayoutTab { tab_name } => {
+            if let Some(tab) = tabs.iter().find(|t| t.name == *tab_name) {
                 return check_dir_needs_input(tab.dir.as_deref());
             }
         }
-        "layout-pane" => {
-            let dot = name.find('.').unwrap_or(name.len());
-            let tab_name = &name[..dot];
-            if let Some(tab) = tabs.iter().find(|t| t.name == tab_name) {
-                let pane_name = if dot < name.len() {
-                    &name[dot + 1..]
+        PickerAction::OpenLayoutPane { tab_name, pane_name } => {
+            if let Some(tab) = tabs.iter().find(|t| t.name == *tab_name) {
+                let pane = if let Some(pane_name) = pane_name {
+                    tab.panes.iter().find(|p| p.name == *pane_name)
                 } else {
-                    ""
-                };
-                let pane = if pane_name.is_empty() {
                     tab.panes.first()
-                } else {
-                    tab.panes.iter().find(|p| p.name == pane_name)
                 };
                 let dir = pane.and_then(|p| p.dir.as_deref()).or(tab.dir.as_deref());
                 return check_dir_needs_input(dir);
