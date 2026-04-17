@@ -1,0 +1,22 @@
+{
+  "name": "z",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "z": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build src/index.ts --compile --outfile z"
+  },
+  "dependencies": {
+    "ink": "^7.0.0",
+    "react": "^19.2.5",
+    "yaml": "^2.7.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^22",
+    "@types/react": "^19.2.14"
+  }
+}
